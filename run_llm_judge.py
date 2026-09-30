@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +46,7 @@ RUBRIC_TEMPLATE: dict[str, str] = {
 }
 
 
-def _make_judge_fn(client: OpenAI, model: str) -> Any:
+def _make_judge_fn(client: OpenAI, model: str) -> Callable[[str], str]:
     def judge(prompt: str) -> str:
         completion = client.chat.completions.create(
             model=model,
@@ -81,11 +82,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        print("ERROR: OPENAI_API_KEY is missing from .env")
+        return 2
     model = os.getenv("JUDGE_MODEL", "deepseek-reasoner")
-    client = OpenAI(
-        api_key=os.getenv("OPENAI_API_KEY"),
-        base_url=os.getenv("OPENAI_BASE_URL") or None,
-    )
+    client = OpenAI(api_key=api_key, base_url=os.getenv("OPENAI_BASE_URL") or None)
     judge = LLMJudge(_make_judge_fn(client, model))
 
     golden = json.loads(args.golden.read_text(encoding="utf-8"))

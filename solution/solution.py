@@ -411,15 +411,20 @@ class LLMJudge:
 
     @staticmethod
     def _extract_json(text: str) -> dict[str, Any] | None:
-        """Parse the first JSON object in ``text``; None if there is none."""
-        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-        if match is None:
-            return None
-        try:
-            parsed = json.loads(match.group(0))
-        except json.JSONDecodeError:
-            return None
-        return parsed if isinstance(parsed, dict) else None
+        """Parse the first JSON object in ``text``; None if there is none.
+
+        Decodes from each ``{`` in turn, so prose or stray braces around the
+        object (e.g. ``Scores: {...} (scale {0..1})``) do not break parsing.
+        """
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"\{", text):
+            try:
+                parsed, _ = decoder.raw_decode(text, match.start())
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        return None
 
     @staticmethod
     def _normalize_score(value: Any) -> float | None:
