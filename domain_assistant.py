@@ -250,10 +250,25 @@ class OpenAIGenerator:
             raise RuntimeError("OPENAI_API_KEY is missing from .env")
         if not self.model:
             raise RuntimeError("OPENAI_MODEL is missing from .env")
-        self.client = OpenAI(api_key=api_key)
+        # Optional OpenAI-compatible endpoint (e.g. DeepSeek). Such providers
+        # expose Chat Completions but not the Responses API.
+        self.base_url = os.getenv("OPENAI_BASE_URL", "").strip() or None
+        self.client = OpenAI(api_key=api_key, base_url=self.base_url)
         self.max_output_tokens = max_output_tokens
 
     def generate(self, prompt: str) -> str:
+        if self.base_url is not None:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=self.max_output_tokens,
+            )
+            answer = (completion.choices[0].message.content or "").strip()
+            if not answer:
+                raise RuntimeError("Chat completion returned an empty answer")
+            return answer
+
         response = self.client.responses.create(
             model=self.model,
             input=prompt,
